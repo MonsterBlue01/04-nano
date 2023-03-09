@@ -167,12 +167,36 @@ exitError (Error msg) = return (VErr msg)
 --------------------------------------------------------------------------------
 eval :: Env -> Expr -> Value
 --------------------------------------------------------------------------------
-eval = error "TBD:eval"
+eval env (EInt n) = VInt n
+eval env (EBool b) = VBool b
+eval env ENil = VNil
+eval env (EVar x) = case lookup x env of
+                      Just v -> v
+                      Nothing -> VErr ("Variable " ++ x ++ " not in scope")
+eval env (EBin op e1 e2) = evalOp op (eval env e1) (eval env e2)
+eval env (EIf c t e) = if eval env c == VBool True then eval env t else eval env e
+eval env (ELet x e1 e2) = let v1 = eval env e1
+                              env' = (x, v1) : env
+                          in eval env' e2
+eval env (EApp e1 e2) = let v1 = eval env e1
+                            v2 = eval env e2
+                        in case v1 of
+                             VClos env' x body -> eval ((x, v2) : env') body
+                             VPrim f -> f v2
+                             _ -> VErr "type error"
 
 --------------------------------------------------------------------------------
 evalOp :: Binop -> Value -> Value -> Value
 --------------------------------------------------------------------------------
-evalOp = error "TBD:evalOp"
+evalOp Plus (VInt x) (VInt y) = VInt (x + y)
+evalOp Minus (VInt x) (VInt y) = VInt (x - y)
+evalOp Mul (VInt x) (VInt y) = VInt (x * y)
+evalOp Div (VInt x) (VInt y) = if y == 0 then VErr "Division by zero" else VInt (x `div` y)
+evalOp Eq v1 v2 = VBool (v1 == v2)
+evalOp Lt (VInt x) (VInt y) = VBool (x < y)
+evalOp And (VBool x) (VBool y) = VBool (x && y)
+evalOp Or (VBool x) (VBool y) = VBool (x || y)
+evalOp op v1 v2 = VErr ("Invalid arguments for " ++ binopString op)
 
 --------------------------------------------------------------------------------
 -- | `lookupId x env` returns the most recent
@@ -191,7 +215,9 @@ evalOp = error "TBD:evalOp"
 --------------------------------------------------------------------------------
 lookupId :: Id -> Env -> Value
 --------------------------------------------------------------------------------
-lookupId = error "TBD:lookupId"
+lookupId x env = case lookup x env of
+                   Just v -> v
+                   Nothing -> error $ "unbound variable: " ++ x
 
 prelude :: Env
 prelude =
